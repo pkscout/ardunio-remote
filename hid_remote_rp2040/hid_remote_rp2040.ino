@@ -20,7 +20,7 @@
 // DEVICE_NAME - the name of the remote
 // LONG_PRESS_THRESHOLD - an integer of the milliseconds a key must be held to be considered a long press
 
-#define SOFTWARE_VERSION "1.1.0"
+#define SOFTWARE_VERSION "1.1.1"
 #define MANUFACTURER "pkscout"
 #define MODEL "Adafruit RP2040 USB Host with AirLift FeatherWing"
 #define CONFIGURL "https://github.com/pkscout/hid_remote_rp2040"
@@ -102,7 +102,6 @@ void setup() {
   MAC_ADDRESS.setIcon("mdi:ethernet");
   MAC_ADDRESS.setEntityCategory("diagnostic");
   RSSI.setName("WiFi Signal");
-  RSSI.setExpireAfter(90);
   RSSI.setIcon("mdi:wifi");
   RSSI.setUnitOfMeasurement("dBm");
   RSSI.setEntityCategory("diagnostic");
