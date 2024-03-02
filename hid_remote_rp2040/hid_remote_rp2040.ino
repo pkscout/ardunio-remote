@@ -20,7 +20,7 @@
 // DEVICE_NAME - the name of the remote
 // LONG_PRESS_THRESHOLD - an integer of the milliseconds a key must be held to be considered a long press
 
-#define SOFTWARE_VERSION "1.1.1"
+#define SOFTWARE_VERSION "1.1.2"
 #define MANUFACTURER "pkscout"
 #define MODEL "Adafruit RP2040 USB Host with AirLift FeatherWing"
 #define CONFIGURL "https://github.com/pkscout/hid_remote_rp2040"
@@ -221,9 +221,6 @@ extern "C" {
 
   // Invoked when received report from device via interrupt endpoint
   void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len) {
-    keyQueueItem key;
-    key.available = true;
-
     if (KEY_DOWN == 0) {
       Serial.print("HID report: ");
       for (uint16_t i = 1; i < len; i++) {
@@ -241,6 +238,8 @@ extern "C" {
     } else {
       unsigned long down_end = millis();
       unsigned long total_time = down_end - DOWN_START;
+      keyQueueItem key;
+      key.available = true;
 
       if (total_time > LONG_PRESS_THRESHOLD) {
         sprintf(key.value, "%d-L", KEY_DOWN);
