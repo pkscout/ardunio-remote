@@ -89,7 +89,7 @@ void setup() {
   KEY_PRESS.setName("Key Press");
   KEY_PRESS.setForceUpdate(true);
   KEY_PRESS.setIcon("mdi:button-pointer");
-  KEY_PRESS.setAvailability(true);
+  KEY_PRESS.setAvailability(false);
   UPTIME.setName("Uptime");
   UPTIME.setExpireAfter(30);
   UPTIME.setEntityCategory("diagnostic");
