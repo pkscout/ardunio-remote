@@ -1,3 +1,5 @@
+v.1.1.3
+
 v.1.1.2
 - small adjustment to where certain variables are declared
 
