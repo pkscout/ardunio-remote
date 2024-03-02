@@ -1,3 +1,5 @@
+v.1.1.2
+- small adjustment to where certain variables are declared
 
 v.1.1.1
 - set WiFi Signal Sensor to never expire
