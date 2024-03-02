@@ -20,7 +20,7 @@
 // DEVICE_NAME - the name of the remote
 // LONG_PRESS_THRESHOLD - an integer of the milliseconds a key must be held to be considered a long press
 
-#define SOFTWARE_VERSION "1.0.0"
+#define SOFTWARE_VERSION "1.1.0"
 #define MANUFACTURER "pkscout"
 #define MODEL "Adafruit RP2040 USB Host with AirLift FeatherWing"
 #define CONFIGURL "https://github.com/pkscout/hid_remote_rp2040"
@@ -45,12 +45,14 @@ HAMqtt MQTT(CLIENT, DEVICE);
 // global variables
 uint8_t KEY_DOWN = 0;
 unsigned long DOWN_START = 0;
-unsigned long LAST_UPDATE_AT = 0;
+unsigned long SHORT_LAST_UPDATE_AT = 0;
+unsigned long LONG_LAST_UPDATE_AT = 0;
 char UPTIME_CHAR[40];
 char MAC_CHAR[18];
 HASensor KEY_PRESS("key_press");
 HASensor UPTIME("uptime");
 HASensor MAC_ADDRESS("mac_address");
+HASensorNumber RSSI("rssi");
 const int QUEUE_LENGTH = 128;
 
 queue_t KEY_QUEUE;
@@ -72,6 +74,8 @@ void setup() {
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  Serial.print("RSSI: ");
+  Serial.println(WiFi.RSSI());
 
   // setup HA device
   byte mac[6];
@@ -97,6 +101,11 @@ void setup() {
   MAC_ADDRESS.setName("MAC Address");
   MAC_ADDRESS.setIcon("mdi:ethernet");
   MAC_ADDRESS.setEntityCategory("diagnostic");
+  RSSI.setName("WiFi Signal");
+  RSSI.setExpireAfter(90);
+  RSSI.setIcon("mdi:wifi");
+  RSSI.setUnitOfMeasurement("dBm");
+  RSSI.setEntityCategory("diagnostic");
   
   // start MQTT connection
   Serial.print("Starting connection to MQTT broker at ");
@@ -119,8 +128,7 @@ void loop() {
     }
   }
 
-  if ((millis() - LAST_UPDATE_AT) > 2000) { // update in 2s interval
-    String uptime_value = "";
+  if ((millis() - SHORT_LAST_UPDATE_AT) > 2000) { // update in 2s interval
     unsigned long seconds = millis() / 1000;
     int days = seconds / (24 * 3600);
     seconds = seconds % (24 * 3600);
@@ -140,8 +148,13 @@ void loop() {
       sprintf(UPTIME_CHAR, "%ds", seconds);
     }
     UPTIME.setValue(UPTIME_CHAR);
+    SHORT_LAST_UPDATE_AT = millis();
+  }
+
+  if ((millis() - LONG_LAST_UPDATE_AT) > 60000) { // update in 60s interval
     MAC_ADDRESS.setValue(MAC_CHAR);
-    LAST_UPDATE_AT = millis();
+    RSSI.setValue(WiFi.RSSI());
+    LONG_LAST_UPDATE_AT = millis();
   }
 }
 
