@@ -20,10 +20,10 @@
 // DEVICE_NAME - the name of the remote
 // LONG_PRESS_THRESHOLD - an integer of the milliseconds a key must be held to be considered a long press
 
-#define SOFTWARE_VERSION "1.1.2"
+#define SOFTWARE_VERSION "1.1.3"
 #define MANUFACTURER "pkscout"
 #define MODEL "Adafruit RP2040 USB Host with AirLift FeatherWing"
-#define CONFIGURL "https://github.com/pkscout/hid_remote_rp2040"
+#define CONFIGURL "https://github.com/pkscout/ardunio-remote"
 
 #define SPIWIFI       SPI  // The SPI port
 #define SPIWIFI_SS    13   // Chip select pin
