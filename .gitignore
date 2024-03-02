@@ -30,3 +30,4 @@
 *.exe
 *.out
 *.app
+hid_remote_rp2040/arduino_secrets.h
