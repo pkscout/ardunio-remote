@@ -9,11 +9,16 @@
  any redistribution
 *********************************************************************/
 
-/* Requirements:
-  * - For samd21/51, nrf52840, esp32:
- *   - Additional MAX2341e USB Host shield or featherwing is required
- *   - SPI instance, CS pin, INT pin are correctly configured in usbh_helper.h
- */
+// The USB bits of this are all from the hid_device_report example
+// Adafruit provided (see notice above)
+// the rest is custom development also licensed under the MIT license
+
+// arduino_secrets.h needs to contain #define statements for
+// SECRET_SSID - the SSID of the wifi network
+// SECRET_PASS - the password of the wifi network
+// BROKER_ADDR - the IP address of the broker in format IPAddress(127,0,0,1)
+// DEVICE_NAME - the name of the remote
+// LONG_PRESS_THRESHOLD - an integer of the milliseconds a key must be held to be considered a long press
 
 #define SOFTWARE_VERSION "1.1.0"
 #define MANUFACTURER "pkscout"
