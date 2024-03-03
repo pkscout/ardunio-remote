@@ -15,23 +15,22 @@
  *   - SPI instance, CS pin, INT pin are correctly configured in usbh_helper.h
  */
 
-#define SOFTWARE_VERSION "1.0.0"
+#define SOFTWARE_VERSION "1.1.0"
 #define MANUFACTURER "pkscout"
-#define MODEL "ESP32"
+#define MODEL "Adafruit ESP32-S3 Feather with Max2341e USB Featherwing"
 #define CONFIGURL "https://github.com/pkscout/ardunio-remote"
 
-// ESP32 use freeRTOS, we need to run USBhost.task() in its own rtos's thread.
-// Since USBHost.task() will put loop() into dormant state and prevent followed code from running
-// until there is USB host event.
+// ESP32 use freeRTOS, we need to run the non USB stuff in its own rtos's thread
+// because USBHost.task() will put loop() into dormant state and block.
 #define USE_FREERTOS
-#define MQTT_STACK_SZ 2048
+#define STACK_SZ 2048
 
 #include <WiFi.h>
 #include <ArduinoHA.h>
 #include "usbh_helper.h"
 #include "arduino_secrets.h"
 
-// intialize Wifi, Web loggins and HA connection
+// intialize Wifi and HA connection
 WiFiClient CLIENT;
 HADevice DEVICE;
 HAMqtt MQTT(CLIENT, DEVICE);
@@ -39,18 +38,47 @@ HAMqtt MQTT(CLIENT, DEVICE);
 // global variables
 uint8_t KEY_DOWN = 0;
 unsigned long DOWN_START = 0;
-unsigned long LAST_UPDATE_AT = 0;
+unsigned long SHORT_LAST_UPDATE_AT = 0;
+unsigned long LONG_LAST_UPDATE_AT = 0;
 char UPTIME_CHAR[40];
 char MAC_CHAR[18];
 HASensor KEY_PRESS("key_press");
 HASensor UPTIME("uptime");
 HASensor MAC_ADDRESS("mac_address");
+HASensorNumber RSSI("rssi");
+const int QUEUE_LENGTH = 10;
+
+xQueueHandle KEY_QUEUE;
+typedef struct keyQueueItem {
+  char value[10];
+  bool available;
+} item;
+
+void keypress_rtos_task(void *param){
+  (void) param;
+  keyQueueItem key;
+
+  while (1){
+    if (xQueueReceive(KEY_QUEUE, &key, portMAX_DELAY) == pdTRUE) { //retrieving item from the queue and deleting it from the queue
+      Serial.print("VALUE RETRIEVED:\t");
+      Serial.println(key.value);
+      KEY_PRESS.setValue(key.value);
+      Serial.print("AVAILABILITY RETRIEVED:\t");
+      Serial.println(key.available);
+      if (strcmp(key.value,"None") == 0) {
+        KEY_PRESS.setAvailability(key.available);
+      }
+    }
+  }
+}
 
 void mqtt_rtos_task(void *param) {
   (void) param;
+
   while (1) {
     MQTT.loop();
-    if ((millis() - LAST_UPDATE_AT) > 2000) { // update in 2s interval
+
+    if ((millis() - SHORT_LAST_UPDATE_AT) > 2000) { // update in 2s interval
       String uptime_value = "";
       unsigned long seconds = millis() / 1000;
       int days = seconds / (24 * 3600);
@@ -71,7 +99,13 @@ void mqtt_rtos_task(void *param) {
         sprintf(UPTIME_CHAR, "%ds", seconds);
       }
       UPTIME.setValue(UPTIME_CHAR);
-      LAST_UPDATE_AT = millis();
+      SHORT_LAST_UPDATE_AT = millis();
+    }
+
+    if ((millis() - LONG_LAST_UPDATE_AT) > 60000) { // update in 60s interval
+      MAC_ADDRESS.setValue(MAC_CHAR);
+      RSSI.setValue(WiFi.RSSI());
+      LONG_LAST_UPDATE_AT = millis();
     }
   }
 }
@@ -89,11 +123,13 @@ void setup() {
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+  Serial.print("RSSI: ");
+  Serial.println(WiFi.RSSI());
 
   // setup HA device
   byte mac[6];
   WiFi.macAddress(mac);
-  sprintf(MAC_CHAR, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  sprintf(MAC_CHAR, "%2X:%2X:%2X:%2X:%2X:%2X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   Serial.printf("Mac address: ");
   Serial.println(MAC_CHAR);
   DEVICE.setUniqueId(mac, sizeof(mac));
@@ -103,30 +139,31 @@ void setup() {
   DEVICE.setModel(MODEL);
   DEVICE.setConfigurationUrl(CONFIGURL);
   DEVICE.enableExtendedUniqueIds();
-  DEVICE.enableSharedAvailability();
-  DEVICE.setAvailability(true);
   KEY_PRESS.setName("Key Press");
   KEY_PRESS.setForceUpdate(true);
   KEY_PRESS.setIcon("mdi:button-pointer");
+  KEY_PRESS.setAvailability(false);
   UPTIME.setName("Uptime");
   UPTIME.setExpireAfter(30);
   UPTIME.setEntityCategory("diagnostic");
   UPTIME.setIcon("mdi:clock-check-outline");
-  MAC_ADDRESS.setName("Mac Address");
+  MAC_ADDRESS.setName("MAC Address");
   MAC_ADDRESS.setIcon("mdi:ethernet");
   MAC_ADDRESS.setEntityCategory("diagnostic");
+  RSSI.setName("WiFi Signal");
+  RSSI.setIcon("mdi:wifi");
+  RSSI.setUnitOfMeasurement("dBm");
+  RSSI.setEntityCategory("diagnostic");
   
   // start MQTT connection
   Serial.print("Starting connection to MQTT broker at ");
   Serial.println(BROKER_ADDR);
   MQTT.begin(BROKER_ADDR);
-  delay(1000);
-  KEY_PRESS.setAvailability(false);
-  UPTIME.setAvailability(true);
-  MAC_ADDRESS.setAvailability(true);
 
   // Create a task to run the non USB stuff in background
-  xTaskCreate(mqtt_rtos_task, "mqtt", MQTT_STACK_SZ, NULL, 3, NULL);
+  KEY_QUEUE = xQueueCreate(QUEUE_LENGTH, sizeof(item)); 
+  xTaskCreate(mqtt_rtos_task, "mqtt", STACK_SZ, NULL, 3, NULL);
+  xTaskCreate(keypress_rtos_task, "keypress", STACK_SZ, NULL, 3, NULL);
 
   // start USB
   Serial.println("Waiting for USB device to mount...");
@@ -138,6 +175,16 @@ void loop() {
 }
 
 extern "C" {
+
+  void send_key_availability(bool available) {
+    keyQueueItem key;
+    strncpy(key.value, "None", sizeof(key.value));
+    key.available = available;
+    if (xQueueSend(KEY_QUEUE, &key, portMAX_DELAY) == pdPASS) { //adding items to the queue
+      Serial.print("ADDING:\t");
+      Serial.println(key.value);
+     }
+  }
 
   // Invoked when device with hid interface is mounted
   // Report descriptor is also available for use.
@@ -153,22 +200,19 @@ extern "C" {
     Serial.printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
     Serial.printf("VID = %04x, PID = %04x\r\n", vid, pid);
     Serial.println("Listening for remote codes...");
-    KEY_PRESS.setValue("None");
-    KEY_PRESS.setAvailability(true);
-    MAC_ADDRESS.setValue(MAC_CHAR);
+
+    send_key_availability(true);
 
     if (!tuh_hid_receive_report(dev_addr, instance)) {
       Serial.println("Error: cannot request to receive report");
-      KEY_PRESS.setAvailability(false);
-      KEY_PRESS.setValue("None");
+      send_key_availability(false);
     }
   }
 
   // Invoked when device with hid interface is un-mounted
   void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
     Serial.printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
-    KEY_PRESS.setAvailability(false);
-    KEY_PRESS.setValue("None");
+    send_key_availability(false);
   }
 
   // Invoked when received report from device via interrupt endpoint
@@ -190,20 +234,21 @@ extern "C" {
     } else {
       unsigned long down_end = millis();
       unsigned long total_time = down_end - DOWN_START;
-      String key = "";
+      keyQueueItem key;
+      key.available = true;
 
       if (total_time > LONG_PRESS_THRESHOLD) {
-        key = String(KEY_DOWN) + "-L";
+        sprintf(key.value, "%d-L", KEY_DOWN);
       } else {
-        key = String(KEY_DOWN);
+        sprintf(key.value, "%d", KEY_DOWN);
       }
-
+      
       Serial.printf("Keycode : %d held for %dms\r\n", KEY_DOWN, total_time);
-
-      unsigned int len = key.length() + 1;
-      char buf[len];
-      key.toCharArray(buf,len);
-      KEY_PRESS.setValue(buf);
+      
+      if (xQueueSend(KEY_QUEUE, &key, portMAX_DELAY) == pdPASS) { //adding items to the queue
+        Serial.print("ADDING:\t");
+        Serial.println(key.value);
+      }
 
       KEY_DOWN = 0;
       DOWN_START = 0;
@@ -212,8 +257,7 @@ extern "C" {
     // continue to request to receive report
     if (!tuh_hid_receive_report(dev_addr, instance)) {
       Serial.println("Error: cannot request to receive report");
-      KEY_PRESS.setAvailability(false);
-      KEY_PRESS.setValue("None");
+      send_key_availability(false);
     }
   }
 
