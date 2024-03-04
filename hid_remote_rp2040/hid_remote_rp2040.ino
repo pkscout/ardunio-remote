@@ -20,7 +20,7 @@
 // DEVICE_NAME - the name of the remote
 // LONG_PRESS_THRESHOLD - an integer of the milliseconds a key must be held to be considered a long press
 
-#define SOFTWARE_VERSION "1.1.3"
+#define SOFTWARE_VERSION "1.1.4"
 #define MANUFACTURER "pkscout"
 #define MODEL "Adafruit RP2040 USB Host with AirLift FeatherWing"
 #define CONFIGURL "https://github.com/pkscout/ardunio-remote"
@@ -138,7 +138,7 @@ void loop() {
     if ( days > 3650 ) {
       sprintf(UPTIME_CHAR, "%ds", 0);
     } else if ( days ) {
-      sprintf(UPTIME_CHAR, "%%dd %dh %dm %ds", days,hours,minutes,seconds);
+      sprintf(UPTIME_CHAR, "%dd %dh %dm %ds", days,hours,minutes,seconds);
     } else if ( hours ) {
       sprintf(UPTIME_CHAR, "%dh %dm %ds", hours,minutes,seconds);
     } else if ( minutes ) {

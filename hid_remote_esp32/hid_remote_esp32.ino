@@ -20,7 +20,7 @@
 // DEVICE_NAME - the name of the remote
 // LONG_PRESS_THRESHOLD - an integer of the milliseconds a key must be held to be considered a long press
 
-#define SOFTWARE_VERSION "1.1.0"
+#define SOFTWARE_VERSION "1.1.1"
 #define MANUFACTURER "pkscout"
 #define MODEL "Adafruit ESP32-S3 Feather with Max2341e USB Featherwing"
 #define CONFIGURL "https://github.com/pkscout/ardunio-remote"
@@ -95,7 +95,7 @@ void mqtt_rtos_task(void *param) {
       if ( days > 3650 ) {
         sprintf(UPTIME_CHAR, "%ds", 0);
       } else if ( days ) {
-        sprintf(UPTIME_CHAR, "%%dd %dh %dm %ds", days,hours,minutes,seconds);
+        sprintf(UPTIME_CHAR, "%dd %dh %dm %ds", days,hours,minutes,seconds);
       } else if ( hours ) {
         sprintf(UPTIME_CHAR, "%dh %dm %ds", hours,minutes,seconds);
       } else if ( minutes ) {
